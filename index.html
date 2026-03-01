@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html class="dark" lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>提燈夜遊 — 馬年猜燈謎</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;900&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "primary": "#f20d0d",
+        "primary-dark": "#b90a0a",
+        "background-light": "#f8f5f5",
+        "background-dark": "#221010",
+        "accent-gold": "#FFD700",
+        "accent": "#ffd700",
+        "night-blue": "#0F172A",
+        "paper": "#fff8e7",
+      },
+      fontFamily: {
+        "display": ["Be Vietnam Pro", "Noto Sans TC", "sans-serif"],
+        "body": ["Noto Sans TC", "sans-serif"],
+        "serif": ["Noto Serif TC", "serif"],
+      },
+      borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+    },
+  },
+}
+</script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background-color: #1a0b0b; font-family: 'Be Vietnam Pro', 'Noto Sans TC', sans-serif; }
+  .lantern-glow { box-shadow: 0 0 15px 2px rgba(242, 13, 13, 0.6); }
+  .gold-glow { box-shadow: 0 0 25px 8px rgba(255, 215, 0, 0.35); }
+  .glow-effect { box-shadow: 0 0 25px 8px rgba(242, 13, 13, 0.25); }
+  .text-glow { text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #221010; }
+  ::-webkit-scrollbar-thumb { background: #4a2828; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #6e3b3b; }
+
+  /* Animations */
+  @keyframes swing { 0%,100%{ transform:rotate(-2deg); } 50%{ transform:rotate(2deg); } }
+  .lantern-swing { animation: swing 3s ease-in-out infinite; transform-origin: top center; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+  .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+  @keyframes fadeInScale { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
+  .fade-in-scale { animation: fadeInScale 0.5s ease-out forwards; }
+  @keyframes scrollDown { from{max-height:0;opacity:0;padding:0 12px} to{max-height:300px;opacity:1;padding:16px} }
+  .scroll-reveal { animation: scrollDown 0.8s ease-out forwards; overflow:hidden; }
+  @keyframes celebText { 0%{transform:scale(0) rotate(-10deg);opacity:0} 50%{transform:scale(1.15) rotate(2deg)} 100%{transform:scale(1) rotate(0);opacity:1} }
+  .celeb-text { animation: celebText 0.8s ease-out forwards; }
+  @keyframes coinDrop { 0%{transform:translateY(-100vh) rotate(0deg);opacity:1} 80%{opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
+  .coin-drop { animation: coinDrop var(--dur) ease-in forwards; animation-delay: var(--delay); }
+  @keyframes horseIdle { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  .horse-idle { animation: horseIdle 3s ease-in-out infinite; }
+  @keyframes horseBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-18px)} }
+  .horse-bounce { animation: horseBounce 0.5s ease-in-out 3; }
+  @keyframes starTwinkle { 0%,100%{opacity:0.2} 50%{opacity:0.8} }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen overflow-x-hidden flex flex-col selection:bg-primary selection:text-white">
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ==================== DATA ====================
+const riddles = [
+  {id:1, question:"警察生氣會變成甚麼?", answer:"警報器（爆氣）"},
+  {id:2, question:"公雞喜歡甚麼品牌？", answer:"MUJI（母雞）"},
+  {id:3, question:"警察為何不能燙捲髮？", answer:"因為他們是執法（直髮）人員"},
+  {id:4, question:"姐姐生小孩你會得到甚麼？（男生回答）", answer:"成就（舅）感"},
+  {id:5, question:"水的媽媽是誰？", answer:"水母"},
+  {id:6, question:"甚麼東西會卡在肺？", answer:"CityCafe"},
+  {id:7, question:"神的交通工具是什麼？", answer:"寶貝（神奇寶貝）"},
+  {id:8, question:"什麼動物最怕水？", answer:"雞（因為雞不可濕）"},
+  {id:9, question:"什麼動物最愛貼在牆上？", answer:"海豹（海報）"},
+  {id:10, question:"為什麼蠶寶寶很有錢？", answer:"因為它會結繭（節儉）"},
+  {id:11, question:"什麼國家的人都不用電的？", answer:"緬甸（免電）"},
+  {id:12, question:"他走了的英文怎麼說？", answer:"IKEA"},
+  {id:13, question:"醬油的哥哥是誰？", answer:"醬油膏"},
+  {id:14, question:"城市和鄉下，哪個地方的河比較湧急？", answer:"鄉下（相煎何太急）"},
+  {id:15, question:"五月花和百合花哪一個沒有生小孩？", answer:"五月花（五月花衛生紙＝未生子）"},
+  {id:16, question:"熊貓一生中最大的遺憾是什麼？", answer:"沒有彩色照片"},
+  {id:17, question:"日月潭的中間是什麼？", answer:"月"},
+  {id:18, question:"為什麼大部份佛教徒都在北半球？", answer:"因為南無阿彌陀佛"},
+  {id:19, question:"煮一顆蛋要四分鐘，煮八顆蛋要幾分鐘？", answer:"四分鐘"},
+  {id:20, question:"用什麼辦法可以讓眉毛長在眼睛下面？", answer:"倒立"},
+  {id:21, question:"一輛客車發生了事故，所有人都受傷了，為什麼小明卻沒事？", answer:"因為他不在車上"},
+  {id:22, question:"星星的重量是幾公克？（猜一品牌）", answer:"Starbucks（星八克）"},
+  {id:23, question:"用南瓜打頭和用西瓜打頭，哪個比較痛？", answer:"頭比較痛"},
+  {id:24, question:"大月有31天，小月有30天，哪個月有28天？", answer:"每個月都有28天"},
+  {id:25, question:"八十歲照鏡子會是什麼樣子？", answer:"老樣子"},
+  {id:26, question:"哪個數字最懶？哪個數字最勤快？", answer:"1最懶，2最勤快（一不作二不休）"},
+];
+
+const lanternChars = ["福","春","喜","吉","樂","財","壽","安","和","慶","瑞","祥","豐","盛","旺","順","圓","滿","如","意","歡","笑","智","慧","明","亮"];
+const numLabels = ["壹","貳","參","肆","伍","陸","柒","捌","玖","拾","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳","㉑","㉒","㉓","㉔","㉕","㉖"];
+const encouragements = ["好棒！你好聰明！","太厲害了！","答對了！繼續加油！","哇！你是天才！","真是厲害呀！","聰明的小朋友！","繼續挑戰吧！","你太強了！"];
+
+// ==================== STORAGE ====================
+const STORAGE_KEY = 'lantern_riddle_states';
+function loadStates() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Validate: must have all riddle ids
+      const valid = riddles.every(r => parsed[r.id]);
+      if (valid) return parsed;
+    }
+  } catch(e) {}
+  return null;
+}
+function saveStates(states) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(states)); } catch(e) {}
+}
+function clearStates() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+}
+
+// ==================== BACKGROUND MUSIC ====================
+const BGMManager = {
+  playlist: ['/sounds/new_year_1.mp3', '/sounds/new_year_2.mp3'],
+  currentIndex: 0,
+  audio: null,
+  muted: false,
+  started: false,
+
+  init() {
+    if (this.started) return;
+    this.started = true;
+    this.audio = new Audio();
+    this.audio.volume = 0.15;
+    this.audio.addEventListener('ended', () => {
+      this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
+      this.playCurrentTrack();
+    });
+    this.playCurrentTrack();
+  },
+
+  playCurrentTrack() {
+    if (!this.audio) return;
+    this.audio.src = this.playlist[this.currentIndex];
+    this.audio.volume = this.muted ? 0 : 0.15;
+    this.audio.play().catch(()=>{});
+  },
+
+  setMuted(muted) {
+    this.muted = muted;
+    if (this.audio) {
+      this.audio.volume = muted ? 0 : 0.15;
+    }
+  }
+};
+
+// ==================== SOUND ====================
+const SoundManager = {
+  initialized: false, muted: false,
+  async init() {
+    if (this.initialized) return;
+    try { await Tone.start(); Tone.Destination.volume.value = -6; this.initialized = true; } catch(e) {}
+    BGMManager.init();
+  },
+  play(name) {
+    if (!this.initialized || this.muted) return;
+    try {
+      switch(name) {
+        case 'lanternTap': { const s = new Tone.MembraneSynth({volume:-8}).toDestination(); s.triggerAttackRelease("C4","8n"); setTimeout(()=>s.dispose(),1000); break; }
+        case 'reveal': { const s = new Tone.Synth({volume:-6,oscillator:{type:'triangle'}}).toDestination(); const n=Tone.now(); s.triggerAttackRelease("C5","16n",n); s.triggerAttackRelease("E5","16n",n+0.15); s.triggerAttackRelease("G5","16n",n+0.3); s.triggerAttackRelease("C6","8n",n+0.45); setTimeout(()=>s.dispose(),2000); break; }
+        case 'firework': { const s = new Tone.NoiseSynth({volume:-12,noise:{type:'white'},envelope:{attack:0.01,decay:0.3,sustain:0}}).toDestination(); s.triggerAttack(); setTimeout(()=>s.dispose(),500); break; }
+        case 'complete': { const s = new Tone.PolySynth(Tone.Synth,{volume:-6}).toDestination(); const n=Tone.now(); s.triggerAttackRelease("C5","8n",n); s.triggerAttackRelease("E5","8n",n+0.2); s.triggerAttackRelease("G5","8n",n+0.4); s.triggerAttackRelease(["C5","E5","G5","C6"],"4n",n+0.6); setTimeout(()=>s.dispose(),3000); break; }
+        case 'click': { const s = new Tone.Synth({volume:-10,oscillator:{type:'sine'},envelope:{attack:0.01,decay:0.1,sustain:0,release:0.1}}).toDestination(); s.triggerAttackRelease("A5","32n"); setTimeout(()=>s.dispose(),500); break; }
+      }
+    } catch(e) {}
+  },
+  toggleMute() {
+    this.muted = !this.muted;
+    BGMManager.setMuted(this.muted);
+    return this.muted;
+  }
+};
+
+// ==================== FIREWORK CANVAS ====================
+function FireworkCanvas({ trigger, intensity }) {
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const animRef = useRef(null);
+  useEffect(() => {
+    if (!trigger) return;
+    const canvas = canvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    const colors = ['#FF4444','#FFD700','#FF6B35','#FF1744','#FFEB3B','#FF9800','#E91E63','#FF5722'];
+    const count = intensity === 'grand' ? 8 : 3;
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        const cx = Math.random()*canvas.width*0.6+canvas.width*0.2;
+        const cy = Math.random()*canvas.height*0.4+canvas.height*0.1;
+        for (let j = 0; j < 50; j++) {
+          const angle = (Math.PI*2/50)*j+Math.random()*0.3;
+          const speed = 2+Math.random()*4;
+          particlesRef.current.push({ x:cx, y:cy, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed, life:1, decay:0.012+Math.random()*0.015, color:colors[Math.floor(Math.random()*colors.length)], size:2+Math.random()*3 });
+        }
+        SoundManager.play('firework');
+      }, i * 400);
+    }
+    function animate() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      particlesRef.current = particlesRef.current.filter(p=>p.life>0);
+      particlesRef.current.forEach(p => {
+        p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.vx*=0.99; p.life-=p.decay;
+        ctx.globalAlpha=p.life; ctx.fillStyle=p.color;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2); ctx.fill();
+      });
+      ctx.globalAlpha=1;
+      if (particlesRef.current.length>0) animRef.current=requestAnimationFrame(animate);
+    }
+    animRef.current=requestAnimationFrame(animate);
+    return ()=>{ if(animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [trigger, intensity]);
+  return <canvas ref={canvasRef} className="fixed inset-0 z-[60] pointer-events-none" />;
+}
+
+// ==================== COIN DROP ====================
+function CoinDrop({ active }) {
+  if (!active) return null;
+  const coins = useMemo(()=>Array.from({length:12},(_,i)=>({ id:i, left:10+Math.random()*80, dur:2+Math.random()*2, delay:Math.random()*1.5, size:20+Math.random()*12 })),[]);
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[55]">
+      {coins.map(c=>(
+        <div key={c.id} className="absolute coin-drop" style={{left:c.left+'%',top:0,'--dur':c.dur+'s','--delay':c.delay+'s'}}>
+          <div style={{width:c.size,height:c.size,background:'linear-gradient(135deg,#FFD700,#FFA500)',borderRadius:'50%',border:'2px solid #DAA520',display:'flex',alignItems:'center',justifyContent:'center',fontSize:c.size*0.45,fontWeight:'bold',color:'#8B6914'}}>元</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ==================== HORSE SVG ====================
+function HorseSVG({size=80}) {
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size}>
+      <ellipse cx="50" cy="58" rx="25" ry="18" fill="#C67B3C"/>
+      <ellipse cx="35" cy="35" rx="14" ry="16" fill="#D4893C" transform="rotate(-10 35 35)"/>
+      <polygon points="27,20 30,10 35,22" fill="#D4893C"/><polygon points="40,18 43,9 46,20" fill="#D4893C"/>
+      <circle cx="31" cy="32" r="3" fill="white"/><circle cx="31" cy="32" r="2" fill="#333"/><circle cx="30" cy="31" r="0.8" fill="white"/>
+      <ellipse cx="26" cy="40" rx="4" ry="3" fill="#B06830"/>
+      <circle cx="24" cy="39" r="1" fill="#8B5020"/><circle cx="28" cy="39" r="1" fill="#8B5020"/>
+      <path d="M42 18 Q55 15, 50 30 Q48 22, 42 20 Z" fill="#8B4513"/>
+      <path d="M45 22 Q58 20, 55 35 Q52 27, 45 25 Z" fill="#8B4513"/>
+      <rect x="32" y="72" width="6" height="16" rx="3" fill="#B06830"/>
+      <rect x="42" y="72" width="6" height="16" rx="3" fill="#B06830"/>
+      <rect x="55" y="72" width="6" height="16" rx="3" fill="#B06830"/>
+      <rect x="63" y="72" width="6" height="16" rx="3" fill="#B06830"/>
+      <rect x="31" y="86" width="8" height="4" rx="2" fill="#5C3317"/>
+      <rect x="41" y="86" width="8" height="4" rx="2" fill="#5C3317"/>
+      <rect x="54" y="86" width="8" height="4" rx="2" fill="#5C3317"/>
+      <rect x="62" y="86" width="8" height="4" rx="2" fill="#5C3317"/>
+      <path d="M75 50 Q90 45, 85 60 Q82 55, 75 55 Z" fill="#8B4513"/>
+      <circle cx="25" cy="38" r="3" fill="#FF9999" opacity="0.4"/>
+      <path d="M24 43 Q28 47, 32 43" fill="none" stroke="#8B5020" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M38 48 Q50 42, 62 48 Q58 55, 42 55 Z" fill="#f20d0d" opacity="0.8"/>
+      <path d="M40 49 Q50 44, 60 49 Q57 54, 43 54 Z" fill="#FFD700" opacity="0.3"/>
+    </svg>
+  );
+}
+
+// ==================== START SCREEN ====================
+function StartScreen({ onStart }) {
+  return (
+    <div className="fixed inset-0 z-30 flex flex-col items-center justify-center" style={{background:'radial-gradient(ellipse at 50% 30%, #3a1515 0%, #1a0b0b 70%)'}}>
+      {/* Floating particles */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {Array.from({length:40},(_,i)=>(
+          <div key={i} className="absolute rounded-full bg-white" style={{
+            left:Math.random()*100+'%', top:Math.random()*100+'%',
+            width:(1+Math.random()*2)+'px', height:(1+Math.random()*2)+'px',
+            opacity:0.2+Math.random()*0.5,
+            animation:`starTwinkle ${2+Math.random()*4}s ease-in-out ${Math.random()*3}s infinite`
+          }}/>
+        ))}
+      </div>
+      <div className="relative z-10 flex flex-col items-center px-6 text-center fade-in max-w-xl">
+        {/* Lanterns */}
+        <div className="flex gap-4 sm:gap-6 mb-8">
+          {['提','燈','夜','遊'].map((ch,i)=>(
+            <div key={i} className="lantern-swing" style={{animationDelay:i*0.3+'s'}}>
+              <div className="flex flex-col items-center">
+                <div className="w-10 h-2.5 bg-black/40 rounded-full mb-0"></div>
+                <div className="w-14 h-20 sm:w-20 sm:h-28 bg-gradient-to-b from-red-500 to-red-700 rounded-[1.5rem] sm:rounded-[2rem] lantern-glow flex items-center justify-center relative">
+                  <span className="text-xl sm:text-3xl font-bold text-accent-gold font-serif">{ch}</span>
+                  <div className="absolute -bottom-3 w-3 h-8 bg-yellow-600 rounded-b"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <h1 className="text-4xl sm:text-6xl font-black text-accent-gold font-serif text-glow mb-4 tracking-wider">馬年猜燈謎</h1>
+        <p className="text-[#ffebd0] text-lg sm:text-xl mb-2 leading-relaxed opacity-90">今夜星光燦爛，花燈如晝</p>
+        <p className="text-[#ba9c9c] text-base max-w-md mb-10 leading-relaxed">點擊燈籠，挑戰趣味謎語！和可愛的小馬一起提燈夜遊吧！</p>
+        <button onClick={onStart} className="group bg-gradient-to-r from-accent-gold to-yellow-600 text-slate-900 font-bold text-xl px-10 py-4 rounded-xl shadow-lg hover:shadow-yellow-500/30 hover:-translate-y-1 transition-all flex items-center gap-3">
+          <span className="material-symbols-outlined text-2xl">play_arrow</span>
+          開始遊戲
+          <span className="material-symbols-outlined text-xl">volume_up</span>
+        </button>
+        <p className="text-[#6e3b3b] text-sm mt-4">點擊開始將啟用音效</p>
+      </div>
+      {/* Horse */}
+      <div className="absolute bottom-6 right-6 horse-idle opacity-80"><HorseSVG size={90}/></div>
+    </div>
+  );
+}
+
+// ==================== END SCREEN ====================
+function EndScreen({ completedCount, total, onRestart }) {
+  const [fw, setFw] = useState(false);
+  useEffect(()=>{ setFw(true); SoundManager.play('complete'); },[]);
+  return (
+    <div className="fixed inset-0 z-30 flex flex-col items-center justify-center" style={{background:'radial-gradient(ellipse at center, #3a1515 0%, #1a0b0b 100%)'}}>
+      <FireworkCanvas trigger={fw} intensity="grand"/>
+      <div className="relative z-10 flex flex-col items-center text-center px-6 fade-in">
+        <div className="celeb-text mb-6">
+          <h1 className="text-5xl sm:text-7xl font-black text-accent-gold font-serif text-glow tracking-wider">恭喜過關！</h1>
+        </div>
+        <div className="horse-bounce mb-6"><HorseSVG size={120}/></div>
+        <p className="text-[#ffebd0] text-xl mb-2">全部燈謎挑戰完成！</p>
+        <p className="text-accent-gold text-3xl font-bold mb-8 font-serif">共完成 {completedCount} / {total} 題</p>
+        <button onClick={onRestart} className="bg-gradient-to-r from-accent-gold to-yellow-600 text-slate-900 font-bold text-xl px-10 py-4 rounded-xl shadow-lg hover:shadow-yellow-500/30 hover:-translate-y-1 transition-all flex items-center gap-3">
+          <span className="material-symbols-outlined text-2xl">refresh</span>再玩一次
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ==================== HOME HEADER (matches stitch design) ====================
+function HomeHeader({ completedCount, total, soundMuted, onToggleMute, onReset }) {
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  return (
+    <header className="bg-background-dark/95 backdrop-blur-lg border-b border-primary/20 sticky top-0 z-50 shadow-lg">
+      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white/20 relative overflow-hidden">
+            <HorseSVG size={32}/>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-3xl">candle</span>
+            燈籠夜遊
+          </h1>
+        </div>
+        <nav className="hidden md:flex items-center gap-8">
+          <a className="text-primary font-bold text-lg border-b-2 border-primary pb-1 px-2 cursor-pointer">首頁</a>
+          <a className="text-slate-400 hover:text-white font-medium text-lg transition-colors px-2 cursor-pointer">排行榜</a>
+          <a className="text-slate-400 hover:text-white font-medium text-lg transition-colors px-2 relative cursor-pointer">
+            市集<span className="absolute -top-1 -right-2 w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+          </a>
+          <a className="text-slate-400 hover:text-white font-medium text-lg transition-colors px-2 cursor-pointer">我的</a>
+        </nav>
+        <div className="flex items-center gap-3 sm:gap-4">
+          {/* Reset button */}
+          <div className="relative">
+            <button onClick={()=>setShowResetConfirm(!showResetConfirm)} className="p-2 rounded-full bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-white/10" title="重置進度">
+              <span className="material-symbols-outlined text-lg">restart_alt</span>
+            </button>
+            {showResetConfirm && (
+              <div className="absolute top-full right-0 mt-2 bg-slate-900 border border-white/10 rounded-xl p-4 shadow-2xl z-50 w-56 fade-in-scale">
+                <p className="text-white text-sm mb-3 font-medium">確定要重置所有進度嗎？</p>
+                <p className="text-slate-400 text-xs mb-4">所有燈籠將回到初始狀態</p>
+                <div className="flex gap-2">
+                  <button onClick={()=>{onReset(); setShowResetConfirm(false);}} className="flex-1 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-lg transition-colors">確定重置</button>
+                  <button onClick={()=>setShowResetConfirm(false)} className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg transition-colors">取消</button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-6 bg-slate-800/40 rounded-full pl-4 pr-2 py-1.5 border border-white/10">
+            <div className="flex items-center gap-3 pr-4 border-r border-white/10">
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider">積分</p>
+                <p className="text-base font-bold text-accent-gold leading-none">{completedCount * 100}</p>
+              </div>
+              <span className="material-symbols-outlined text-accent-gold">monetization_on</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider">關卡</p>
+                <p className="text-sm font-bold text-white leading-none">{completedCount}/{total}</p>
+              </div>
+              <button onClick={onToggleMute} className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shadow-md border border-accent-gold/50 cursor-pointer hover:scale-105 transition-transform">
+                <span className="material-symbols-outlined text-white text-lg">{soundMuted ? 'volume_off' : 'volume_up'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ==================== RIDDLE HEADER (matches stitch riddle design) ====================
+function RiddleHeader({ completedCount, total, soundMuted, onToggleMute, onBack }) {
+  return (
+    <header className="flex items-center justify-between px-8 py-5 bg-[#1a0b0b]/95 backdrop-blur-md sticky top-0 z-50 border-b border-primary/20 shadow-lg">
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="bg-primary p-2.5 rounded-lg text-white shadow-lg shadow-primary/30 hover:scale-105 transition-transform">
+          <span className="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1 className="text-2xl font-bold text-[#ffebd0] tracking-tight font-serif">燈謎大會</h1>
+      </div>
+      <nav className="hidden md:flex items-center gap-8 text-[#ba9c9c] font-medium">
+        <a className="hover:text-primary hover:-translate-y-0.5 transition-all duration-300 cursor-pointer" onClick={onBack}>首頁</a>
+        <a className="text-primary font-bold relative after:content-[''] after:absolute after:-bottom-2 after:left-0 after:w-full after:h-0.5 after:bg-primary cursor-pointer">燈謎挑戰</a>
+        <a className="hover:text-primary hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">排行榜</a>
+        <a className="hover:text-primary hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">我的成就</a>
+      </nav>
+      <div className="flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-2 bg-black/20 px-4 py-1.5 rounded-full border border-white/10 text-slate-300">
+          <span className="text-sm">關卡 {completedCount}/{total}</span>
+          <div className="w-px h-4 bg-white/20 mx-1"></div>
+          <span className="flex items-center gap-1 text-primary text-sm font-bold">
+            <span className="material-symbols-outlined text-base">local_fire_department</span>
+            {completedCount * 100} 分
+          </span>
+        </div>
+        <button onClick={onToggleMute} className="p-2.5 rounded-full bg-slate-800 hover:bg-slate-700 transition-colors text-slate-400">
+          <span className="material-symbols-outlined">{soundMuted ? 'volume_off' : 'volume_up'}</span>
+        </button>
+      </div>
+    </header>
+  );
+}
+
+// ==================== RIDDLE VIEW (matches stitch interactive_riddle_reveal) ====================
+function RiddleView({ riddle, status, onReveal, onBack, onComplete, horseMsg, horseState }) {
+  const [showAnswer, setShowAnswer] = useState(status === 'revealed' || status === 'completed');
+  const [showFw, setShowFw] = useState(false);
+  const [showCoins, setShowCoins] = useState(false);
+
+  const handleReveal = () => {
+    setShowAnswer(true);
+    setShowFw(true);
+    setShowCoins(true);
+    SoundManager.play('reveal');
+    onReveal(riddle.id);
+    setTimeout(()=>setShowFw(false), 3000);
+    setTimeout(()=>setShowCoins(false), 3000);
+  };
+
+  return (
+    <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 w-full max-w-[1600px] mx-auto min-h-[calc(100vh-88px)]">
+      <FireworkCanvas trigger={showFw} intensity="small"/>
+      <CoinDrop active={showCoins}/>
+      <div className="w-full max-w-6xl relative flex items-center justify-center" style={{minHeight:'500px'}}>
+        {/* Background container matching stitch design */}
+        <div className="absolute inset-0 rounded-[2rem] lg:rounded-[3rem] border border-white/5 bg-[#271b1b]/50 backdrop-blur-sm shadow-2xl overflow-hidden">
+          {/* Floating decorative dots */}
+          <div className="absolute inset-0 pointer-events-none opacity-50">
+            <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-accent-gold rounded-full opacity-60 animate-pulse"></div>
+            <div className="absolute top-1/3 right-1/4 w-3 h-3 bg-primary rounded-full opacity-40 animate-bounce"></div>
+            <div className="absolute bottom-1/3 left-10 w-1 h-1 bg-white rounded-full opacity-80"></div>
+            <div className="absolute top-10 right-20 w-1.5 h-1.5 bg-accent-gold rounded-full opacity-70 animate-pulse" style={{animationDelay:'75ms'}}></div>
+            <div className="absolute bottom-20 right-1/3 w-2 h-2 bg-primary rounded-full opacity-30 animate-bounce" style={{animationDelay:'150ms'}}></div>
+          </div>
+        </div>
+
+        {/* Content grid */}
+        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 w-full px-6 sm:px-8 lg:px-12 py-8 items-center">
+          {/* Riddle card - left side */}
+          <div className="lg:col-span-7 flex flex-col gap-6 justify-center">
+            <div className="relative w-full bg-gradient-to-br from-[#d62828] to-[#9e1b1b] rounded-2xl shadow-2xl border-[3px] border-[#ffd700] glow-effect group overflow-hidden flex flex-col fade-in-scale">
+              {/* Gold hooks */}
+              <div className="absolute -top-3 left-8 w-6 h-20 bg-[#ffd700] rounded-b-full shadow-lg z-20 flex flex-col items-center justify-end pb-2">
+                <div className="w-3 h-3 rounded-full bg-[#d62828]"></div>
+              </div>
+              <div className="absolute -top-3 right-8 w-6 h-20 bg-[#ffd700] rounded-b-full shadow-lg z-20 flex flex-col items-center justify-end pb-2">
+                <div className="w-3 h-3 rounded-full bg-[#d62828]"></div>
+              </div>
+
+              {/* Question area */}
+              <div className="relative m-3 border border-[#ffd700]/30 rounded-xl bg-paper/10 backdrop-blur-sm flex-1 flex flex-col items-center justify-center p-8 sm:p-10 text-center" style={{minHeight:'280px'}}>
+                <span className="text-[#ffd700] text-lg sm:text-xl font-serif mb-6 tracking-[0.5em] opacity-80 border-b border-[#ffd700]/30 pb-2">第 {riddle.id} 題</span>
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-serif font-bold text-white mb-6 leading-relaxed tracking-wider drop-shadow-lg text-glow">
+                  {riddle.question}
+                </h2>
+              </div>
+
+              {/* Bottom bar */}
+              <div className="bg-[#7a1515] border-t-2 border-[#5e1111] p-4 relative overflow-hidden group-hover:bg-[#8a1c1c] transition-colors duration-500">
+                <div className="absolute inset-0 opacity-10" style={{backgroundImage:"url('https://www.transparenttextures.com/patterns/asfalt-dark.png')"}}></div>
+                {!showAnswer ? (
+                  <div className="relative z-10 flex items-center justify-between px-2 sm:px-4">
+                    <div className="flex items-center gap-3 text-[#ffb7b7]/70">
+                      <span className="material-symbols-outlined text-2xl">lock</span>
+                      <span className="text-sm sm:text-base font-serif tracking-widest">答案已隱藏</span>
+                    </div>
+                    <button onClick={handleReveal} className="px-6 sm:px-8 py-2.5 bg-gradient-to-r from-[#ffd700] to-[#fdb931] text-[#8a1c1c] text-base sm:text-lg font-bold rounded-full shadow-[0_0_15px_rgba(255,215,0,0.3)] hover:shadow-[0_0_25px_rgba(255,215,0,0.5)] hover:scale-105 active:scale-95 transition-all duration-300 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-xl">visibility</span>
+                      <span>揭曉答案</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="scroll-reveal relative z-10">
+                    <div className="bg-paper/95 rounded-xl p-6 text-center border border-[#ffd700]/20" style={{boxShadow:'inset 0 2px 8px rgba(0,0,0,0.1)'}}>
+                      <span className="text-red-800/50 text-xs tracking-widest block mb-2 font-serif">謎底揭曉</span>
+                      <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-primary font-serif tracking-wider">{riddle.answer}</p>
+                    </div>
+                    <div className="flex justify-center mt-4">
+                      <button onClick={onBack} className="px-6 py-2 bg-white/10 hover:bg-white/20 text-[#ffebd0] rounded-full text-sm font-medium transition-colors flex items-center gap-2 border border-white/10">
+                        <span className="material-symbols-outlined text-base">arrow_back</span>
+                        回到燈籠列表
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Texture overlay */}
+              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{backgroundImage:"url('https://www.transparenttextures.com/patterns/binding-dark.png')"}}></div>
+            </div>
+          </div>
+
+          {/* Horse mascot - right side */}
+          <div className="lg:col-span-5 flex flex-col items-center justify-center h-full relative pl-0 lg:pl-8">
+            <div className="relative w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80 xl:w-96 xl:h-96 flex items-center justify-center">
+              <div className="absolute inset-0 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
+              {/* Speech bubble */}
+              {horseMsg && (
+                <div className="absolute -top-4 sm:-top-8 -right-4 bg-white text-slate-800 p-4 sm:p-5 rounded-2xl rounded-bl-none shadow-xl max-w-[200px] z-20 border-2 border-primary/10 fade-in-scale" style={{animationDuration:'3s'}}>
+                  <p className="text-sm sm:text-base font-serif font-bold text-primary mb-1">{horseState === 'celebrating' ? '太棒了！' : '思考中...'}</p>
+                  <p className="text-xs sm:text-sm text-slate-600">{horseMsg}</p>
+                </div>
+              )}
+              <div className={`relative z-10 w-full h-full bg-center bg-contain bg-no-repeat drop-shadow-2xl transform hover:-translate-y-2 transition-transform duration-500 ${horseState==='celebrating'?'horse-bounce':''}`} style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDUbp3VEvqRfkMvOX42KcnxphPPC9SxQIYSHjWkujIYWA_P-YoLUOqP36LtABuHpA7kfZzxCofeXspd9V46k9W81N7m3XY9WL38QZtfnAzQU-ad8N94_adpXgOrhG2q0BvGvvmTVIho9Qc-O5D3rvgQ8hXOQfVIuYToq66dYRzBtUUIbdA3P2qdkCeTN_LS5LDyFQK_GDFfUQZlvPzTAuhBES8D1go9RHsKu3PWCda0FwJNwvwiJu0rTT0wuVAtFB1D2eQd6UKTMhxX')"}}></div>
+            </div>
+            <div className="mt-8 text-center">
+              <div className="inline-flex items-center justify-center px-6 py-2 border border-[#ffd700]/30 rounded-full bg-[#ffd700]/5 text-[#ffd700] text-sm tracking-widest uppercase">
+                Current Challenge
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+// ==================== HOME VIEW (matches stitch lantern_night_walk_home_screen) ====================
+function HomeView({ riddles, riddleStates, completedCount, onSelect, currentRiddleId }) {
+  // Find the first non-completed riddle for the featured card
+  const featuredId = currentRiddleId || riddles.find(r => riddleStates[r.id] !== 'completed')?.id || riddles[0].id;
+  const featuredRiddle = riddles.find(r => r.id === featuredId);
+
+  return (
+    <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8">
+      {/* Hero Banner */}
+      <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl mb-10 h-[200px] sm:h-[280px] lg:h-[320px] group border border-white/5">
+        <img alt="Festive lantern festival night scene" className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB08Zuof8VPX-CY9hkFUfZl7MQt6T81BWsoSwXZM0bO-PUFlt8bYH38wc7wxflna6KoWk9lBTdqIR1vNHqNtzChkEGPYspIrmq0BbG-nAFyy4JWfkPjBs5LxIPGYAtbYOb02vIjHpVUaM7O8R8_vtVg0UjZ-bXh7FHCF1EieKnuvjIvGbPFNriXz9nAUp4vWIJQVAZQnoj3z8FpRqCza45NULcf0OYMqcTiiQpI4zYE-QniN6l1im4N0Ym8m9Pl7MCoJ_3qyO37EwsV"/>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent"></div>
+        <div className="relative h-full flex flex-col justify-center px-8 sm:px-12 z-10 max-w-2xl">
+          <div className="inline-flex items-center self-start px-4 py-1.5 rounded-full bg-primary/90 text-white text-sm font-bold mb-4 backdrop-blur-sm border border-white/20 shadow-[0_0_15px_rgba(242,13,13,0.4)]">
+            <span className="material-symbols-outlined text-base mr-2">celebration</span>
+            元宵特別活動
+          </div>
+          <h1 className="text-white tracking-tight text-3xl sm:text-4xl lg:text-5xl font-black leading-tight mb-4 text-glow drop-shadow-xl">元宵燈謎大會</h1>
+          <p className="text-slate-100 text-sm sm:text-lg font-medium opacity-90 mb-6 sm:mb-8 max-w-lg leading-relaxed hidden sm:block">今夜星光燦爛，花燈如晝。挑戰傳統燈謎，贏取豐厚金幣與限定頭像框！點擊下方燈籠開始您的智慧之旅。</p>
+          <button onClick={()=>onSelect(featuredId)} className="bg-gradient-to-r from-accent-gold to-yellow-600 text-slate-900 font-bold px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl shadow-lg hover:shadow-yellow-500/30 hover:-translate-y-1 transition-all w-fit flex items-center gap-2 text-sm sm:text-base">
+            <span className="material-symbols-outlined">play_arrow</span>
+            立即開始
+          </button>
+        </div>
+      </div>
+
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-8 px-2">
+        <h3 className="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-3">
+          <span className="w-1.5 h-8 bg-primary rounded-full shadow-[0_0_10px_rgba(242,13,13,0.8)]"></span>
+          燈謎挑戰關卡
+        </h3>
+        <div className="flex gap-2">
+          <button className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition-colors">
+            <span className="material-symbols-outlined">chevron_left</span>
+          </button>
+          <button className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition-colors">
+            <span className="material-symbols-outlined">chevron_right</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Lantern Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-12">
+        {/* Featured card - first uncompleted */}
+        <button
+          onClick={()=>onSelect(featuredId)}
+          className="relative group h-64 rounded-3xl overflow-hidden bg-gradient-to-br from-primary to-red-900 shadow-2xl shadow-red-900/30 col-span-1 sm:col-span-2 lg:col-span-2 border-2 border-accent-gold transform hover:scale-[1.01] transition-all"
+        >
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagmonds-light.png')] opacity-20"></div>
+          <div className="absolute top-6 left-6 bg-black/30 px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
+            <span className="text-accent-gold text-sm font-bold tracking-wider flex items-center gap-1">
+              <span className="w-2 h-2 bg-accent-gold rounded-full animate-pulse"></span> 進行中
+            </span>
+          </div>
+          <div className="absolute inset-0 flex flex-row items-center justify-between px-6 sm:px-10">
+            <div className="flex flex-col items-start z-10">
+              <h2 className="text-3xl sm:text-4xl font-black text-white mb-2 drop-shadow-md">第{featuredRiddle.id}題</h2>
+              <p className="text-red-100 text-sm sm:text-base mb-4 sm:mb-6 bg-black/20 px-3 py-1 rounded-lg backdrop-blur-sm">趣味燈謎</p>
+              <div className="px-6 sm:px-8 py-2.5 sm:py-3 bg-white text-primary font-bold rounded-full text-sm sm:text-base shadow-xl hover:bg-slate-100 transition-colors flex items-center gap-2 group-hover:gap-3">
+                繼續挑戰 <span className="material-symbols-outlined text-lg">arrow_forward</span>
+              </div>
+            </div>
+            <div className="w-24 h-36 sm:w-32 sm:h-44 bg-gradient-to-b from-yellow-400 to-orange-600 rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_0_40px_rgba(255,215,0,0.3)] flex items-center justify-center relative animate-pulse transform group-hover:-rotate-3 transition-transform duration-500">
+              <span className="text-4xl sm:text-6xl font-black text-white drop-shadow-md font-serif">{lanternChars[(featuredId-1) % lanternChars.length]}</span>
+              <div className="absolute -top-1 w-10 sm:w-12 h-3 bg-black/30 rounded-full"></div>
+              <div className="absolute -bottom-6 w-4 h-12 bg-red-600 rounded-b-lg"></div>
+            </div>
+          </div>
+        </button>
+
+        {/* Other riddles */}
+        {riddles.filter(r => r.id !== featuredId).map((riddle) => {
+          const st = riddleStates[riddle.id];
+          const idx = riddle.id - 1;
+          const isCompleted = st === 'completed';
+          const isLocked = st === 'locked';
+
+          if (isCompleted) {
+            return (
+              <button key={riddle.id} onClick={()=>onSelect(riddle.id)}
+                className="relative group h-64 rounded-3xl overflow-hidden bg-slate-800 border border-white/5 shadow-lg hover:shadow-primary/20 transition-all duration-300 hover:-translate-y-1">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                <div className="absolute top-0 right-6 w-10 h-14 bg-primary rounded-b-xl shadow-lg flex items-center justify-center border-x border-b border-white/20 z-10">
+                  <span className="text-white font-bold font-serif text-lg">{numLabels[idx] || idx+1}</span>
+                </div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pt-6">
+                  <div className="w-20 h-28 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-[2rem] gold-glow flex items-center justify-center relative mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <div className="absolute -top-1 w-10 h-2.5 bg-black/40 rounded-full"></div>
+                    <span className="material-symbols-outlined text-3xl text-white drop-shadow">check_circle</span>
+                    <div className="absolute -bottom-3 w-3 h-8 bg-yellow-600 rounded-b"></div>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-slate-200 font-bold text-lg mb-1">第{riddle.id}題</span>
+                    <span className="text-emerald-400 text-sm font-medium flex items-center gap-1 bg-emerald-400/10 px-2 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined" style={{fontSize:'14px'}}>check_circle</span> 已完成
+                    </span>
+                  </div>
+                </div>
+              </button>
+            );
+          }
+
+          // Locked / opened state — show as available lantern
+          return (
+            <button key={riddle.id} onClick={()=>onSelect(riddle.id)}
+              className="relative group h-64 rounded-3xl overflow-hidden bg-slate-800 border border-white/5 shadow-lg hover:shadow-primary/20 transition-all duration-300 hover:-translate-y-1">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+              <div className="absolute top-0 right-6 w-10 h-14 bg-primary rounded-b-xl shadow-lg flex items-center justify-center border-x border-b border-white/20 z-10">
+                <span className="text-white font-bold font-serif text-lg">{numLabels[idx] || idx+1}</span>
+              </div>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pt-6">
+                <div className="lantern-swing" style={{animationDelay:(idx*0.15)+'s'}}>
+                  <div className="w-20 h-28 bg-gradient-to-b from-red-500 to-red-700 rounded-[2rem] lantern-glow flex items-center justify-center relative mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <div className="absolute -top-1 w-10 h-2.5 bg-black/40 rounded-full"></div>
+                    <span className="text-4xl font-bold text-accent-gold font-serif">{lanternChars[idx % lanternChars.length]}</span>
+                    <div className="absolute -bottom-3 w-3 h-8 bg-yellow-600 rounded-b"></div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center mt-2">
+                  <span className="text-slate-200 font-bold text-lg mb-1">第{riddle.id}題</span>
+                  <span className="text-slate-400 text-sm">點擊挑戰</span>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="text-center py-6 text-slate-500 text-sm">
+        <p>更多精彩關卡即將推出，敬請期待...</p>
+      </div>
+    </main>
+  );
+}
+
+// ==================== FOOTER ====================
+function Footer() {
+  return (
+    <footer className="bg-background-dark/50 border-t border-white/5 py-8 mt-auto">
+      <div className="max-w-7xl mx-auto px-6 text-center text-slate-600 text-xs">
+        © 2024 燈籠夜遊製作委員會. All Rights Reserved.
+      </div>
+    </footer>
+  );
+}
+
+// ==================== MAIN APP ====================
+function GameApp() {
+  const [phase, setPhase] = useState('start');
+  const [view, setView] = useState('home'); // home | riddle
+  // Load from localStorage or init fresh
+  const [riddleStates, setRiddleStates] = useState(()=>{
+    const saved = loadStates();
+    if (saved) return saved;
+    const s={}; riddles.forEach(r=>s[r.id]='locked'); return s;
+  });
+  const [selectedRiddle, setSelectedRiddle] = useState(null);
+  const [soundMuted, setSoundMuted] = useState(false);
+  const [horseState, setHorseState] = useState('idle');
+  const [horseMsg, setHorseMsg] = useState('');
+
+  // Persist riddle states to localStorage whenever they change
+  useEffect(()=>{ saveStates(riddleStates); }, [riddleStates]);
+
+  const completedCount = useMemo(()=>Object.values(riddleStates).filter(s=>s==='completed').length,[riddleStates]);
+
+  const handleStart = async () => {
+    await SoundManager.init();
+    SoundManager.play('click');
+    setPhase('playing');
+  };
+
+  const handleSelect = (id) => {
+    SoundManager.play('lanternTap');
+    setRiddleStates(prev => {
+      if (prev[id] === 'locked') return {...prev, [id]: 'opened'};
+      return prev;
+    });
+    setSelectedRiddle(id);
+    setView('riddle');
+    setHorseMsg('仔細想想看哦！');
+    setHorseState('idle');
+  };
+
+  const handleReveal = (id) => {
+    setRiddleStates(prev => ({...prev, [id]: 'revealed'}));
+    setHorseState('celebrating');
+    const msg = encouragements[Math.floor(Math.random() * encouragements.length)];
+    setHorseMsg(msg);
+    setTimeout(()=>{
+      setRiddleStates(prev => {
+        const newStates = {...prev, [id]: 'completed'};
+        // Check all done
+        const allDone = Object.values(newStates).every(s=>s==='completed');
+        if (allDone) {
+          setTimeout(()=>{ setView('home'); setPhase('ended'); }, 2000);
+        }
+        return newStates;
+      });
+      setHorseState('idle');
+    }, 2500);
+  };
+
+  const handleBackToHome = () => {
+    setView('home');
+    setSelectedRiddle(null);
+    setHorseMsg('');
+  };
+
+  // Full reset — clear localStorage and reset all states
+  const handleReset = () => {
+    SoundManager.play('click');
+    clearStates();
+    const s={}; riddles.forEach(r=>s[r.id]='locked');
+    setRiddleStates(s);
+    setSelectedRiddle(null);
+    setView('home');
+  };
+
+  const handleRestart = () => {
+    handleReset();
+    setPhase('playing');
+  };
+
+  const toggleMute = () => { const m = SoundManager.toggleMute(); setSoundMuted(m); };
+
+  if (phase === 'start') return <StartScreen onStart={handleStart}/>;
+  if (phase === 'ended') return <EndScreen completedCount={completedCount} total={riddles.length} onRestart={handleRestart}/>;
+
+  const currentRiddle = selectedRiddle ? riddles.find(r=>r.id===selectedRiddle) : null;
+
+  if (view === 'riddle' && currentRiddle) {
+    return (
+      <div className="min-h-screen flex flex-col" style={{backgroundColor:'#1a0b0b'}}>
+        <RiddleHeader completedCount={completedCount} total={riddles.length} soundMuted={soundMuted} onToggleMute={toggleMute} onBack={handleBackToHome}/>
+        <RiddleView
+          riddle={currentRiddle}
+          status={riddleStates[currentRiddle.id]}
+          onReveal={handleReveal}
+          onBack={handleBackToHome}
+          horseMsg={horseMsg}
+          horseState={horseState}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{backgroundColor:'#221010'}}>
+      <HomeHeader completedCount={completedCount} total={riddles.length} soundMuted={soundMuted} onToggleMute={toggleMute} onReset={handleReset}/>
+      <HomeView riddles={riddles} riddleStates={riddleStates} completedCount={completedCount} onSelect={handleSelect} currentRiddleId={selectedRiddle}/>
+      <Footer/>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<GameApp/>);
+</script>
+</body>
+</html>
